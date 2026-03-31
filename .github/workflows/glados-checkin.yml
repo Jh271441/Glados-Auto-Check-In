@@ -18,11 +18,11 @@ jobs:
       - name: Check-in
         id: checkin
         run: |
-          response=$(curl -s -X POST "https://glados.rocks/api/user/checkin" \
+          response=$(curl -s -X POST "https://glados.cloud/api/user/checkin" \
             -H "Content-Type: application/json;charset=UTF-8" \
             -H "Cookie: ${{ secrets.GLADOS_COOKIE }}" \
-            -H "Referer: https://glados.rocks/console/checkin" \
-            -H "Origin: https://glados.rocks" \
+            -H "Referer: https://glados.cloud/console/checkin" \
+            -H "Origin: https://glados.cloud" \
             -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
           echo "签到原始响应: $response"
           # 提取 message 字段作为摘要
@@ -32,9 +32,9 @@ jobs:
       - name: Get Status
         id: status
         run: |
-          status=$(curl -s "https://glados.rocks/api/user/status" \
+          status=$(curl -s "https://glados.cloud/api/user/status" \
             -H "Cookie: ${{ secrets.GLADOS_COOKIE }}" \
-            -H "Referer: https://glados.rocks/console/checkin" \
+            -H "Referer: https://glados.cloud/console/checkin" \
             -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
           echo "状态原始响应: $status"
           days=$(echo "$status" | python3 -c "
