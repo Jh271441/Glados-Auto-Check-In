@@ -3,20 +3,21 @@ name: GlaDOS Auto Check-in
 on:
   schedule:
     - cron: '0 1 * * *'   # UTC 01:00 = 北京时间 09:00
-  workflow_dispatch:       # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   checkin:
     runs-on: ubuntu-latest
     permissions:
-      contents: write      # 允许 push keepalive commit
+      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check-in
-        id: checkin
+      # ── 账号 1 ──────────────────────────────────────────
+      - name: Check-in Account 1
+        id: checkin1
         run: |
           response=$(curl -s -X POST "https://glados.cloud/api/user/checkin" \
             -H "Content-Type: application/json;charset=UTF-8" \
@@ -24,52 +25,82 @@ jobs:
             -H "Referer: https://glados.cloud/console/checkin" \
             -H "Origin: https://glados.cloud" \
             -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
-          echo "签到原始响应: $response"
-          # 提取 message 字段作为摘要
+          echo "账号1签到响应: $response"
           msg=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('message','未知'))" 2>/dev/null || echo "解析失败")
-          echo "checkin_msg=$msg" >> $GITHUB_OUTPUT
+          echo "msg=$msg" >> $GITHUB_OUTPUT
 
-      - name: Get Status
-        id: status
+      - name: Get Status Account 1
+        id: status1
         run: |
           status=$(curl -s "https://glados.cloud/api/user/status" \
             -H "Cookie: ${{ secrets.GLADOS_COOKIE }}" \
             -H "Referer: https://glados.cloud/console/checkin" \
             -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
-          echo "状态原始响应: $status"
           days=$(echo "$status" | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
           left = d.get('data', {}).get('leftDays', None)
           print(round(float(left), 1) if left is not None else '未知')
           " 2>/dev/null || echo "未知")
-          echo "left_days=$days" >> $GITHUB_OUTPUT
+          echo "days=$days" >> $GITHUB_OUTPUT
 
+      # ── 账号 2 ──────────────────────────────────────────
+      - name: Check-in Account 2
+        id: checkin2
+        run: |
+          response=$(curl -s -X POST "https://glados.cloud/api/user/checkin" \
+            -H "Content-Type: application/json;charset=UTF-8" \
+            -H "Cookie: ${{ secrets.GLADOS_COOKIE_2 }}" \
+            -H "Referer: https://glados.cloud/console/checkin" \
+            -H "Origin: https://glados.cloud" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
+          echo "账号2签到响应: $response"
+          msg=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('message','未知'))" 2>/dev/null || echo "解析失败")
+          echo "msg=$msg" >> $GITHUB_OUTPUT
+
+      - name: Get Status Account 2
+        id: status2
+        run: |
+          status=$(curl -s "https://glados.cloud/api/user/status" \
+            -H "Cookie: ${{ secrets.GLADOS_COOKIE_2 }}" \
+            -H "Referer: https://glados.cloud/console/checkin" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
+          days=$(echo "$status" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          left = d.get('data', {}).get('leftDays', None)
+          print(round(float(left), 1) if left is not None else '未知')
+          " 2>/dev/null || echo "未知")
+          echo "days=$days" >> $GITHUB_OUTPUT
+
+      # ── 合并推送微信 ─────────────────────────────────────
       - name: Push to WeChat via PushPlus
         if: always()
         run: |
-          checkin_msg="${{ steps.checkin.outputs.checkin_msg }}"
-          days="${{ steps.status.outputs.left_days }}"
           now=$(date -u '+%Y-%m-%d %H:%M UTC')
 
           content="<h3>🚀 GlaDOS 每日签到报告</h3>
           <hr/>
           <p>🕐 <b>执行时间：</b>${now}</p>
-          <p>✅ <b>签到结果：</b>${checkin_msg}</p>
-          <p>📅 <b>剩余天数：</b>${days} 天</p>
+          <h4>账号 1</h4>
+          <p>✅ <b>签到结果：</b>${{ steps.checkin1.outputs.msg }}</p>
+          <p>📅 <b>剩余天数：</b>${{ steps.status1.outputs.days }} 天</p>
+          <h4>账号 2</h4>
+          <p>✅ <b>签到结果：</b>${{ steps.checkin2.outputs.msg }}</p>
+          <p>📅 <b>剩余天数：</b>${{ steps.status2.outputs.days }} 天</p>
           <hr/>
           <p><small>由 GitHub Actions 自动执行</small></p>"
 
-          push_resp=$(curl -s -X POST "https://www.pushplus.plus/send" \
+          curl -s -X POST "https://www.pushplus.plus/send" \
             -H "Content-Type: application/json" \
             -d "{
               \"token\": \"${{ secrets.PUSH_TOKEN }}\",
-              \"title\": \"GlaDOS 签到 - ${checkin_msg}\",
+              \"title\": \"GlaDOS 每日签到\",
               \"content\": \"${content}\",
               \"template\": \"html\"
-            }")
-          echo "推送结果: $push_resp"
+            }"
 
+      # ── 保持活跃 ─────────────────────────────────────────
       - name: Keep Alive (每周一提交一次)
         if: always()
         run: |
