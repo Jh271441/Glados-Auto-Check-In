@@ -73,32 +73,31 @@ jobs:
           " 2>/dev/null || echo "未知")
           echo "days=$days" >> $GITHUB_OUTPUT
 
-      # ── 合并推送微信 ─────────────────────────────────────
-      - name: Push to WeChat via PushPlus
+      # ── 推送至 Server酱 ─────────────────────────────────────
+      - name: Push to ServerChan
         if: always()
         run: |
           now=$(date -u '+%Y-%m-%d %H:%M UTC')
+          
+          # Server酱支持 Markdown 格式
+          content="### 🚀 GlaDOS 每日签到报告
+          
+          **🕐 执行时间：** ${now}
+          
+          #### 账号 1
+          - **结果：** ${{ steps.checkin1.outputs.msg }}
+          - **剩余：** ${{ steps.status1.outputs.days }} 天
+          
+          #### 账号 2
+          - **结果：** ${{ steps.checkin2.outputs.msg }}
+          - **剩余：** ${{ steps.status2.outputs.days }} 天"
 
-          content="<h3>🚀 GlaDOS 每日签到报告</h3>
-          <hr/>
-          <p>🕐 <b>执行时间：</b>${now}</p>
-          <h4>账号 1</h4>
-          <p>✅ <b>签到结果：</b>${{ steps.checkin1.outputs.msg }}</p>
-          <p>📅 <b>剩余天数：</b>${{ steps.status1.outputs.days }} 天</p>
-          <h4>账号 2</h4>
-          <p>✅ <b>签到结果：</b>${{ steps.checkin2.outputs.msg }}</p>
-          <p>📅 <b>剩余天数：</b>${{ steps.status2.outputs.days }} 天</p>
-          <hr/>
-          <p><small>由 GitHub Actions 自动执行</small></p>"
+          # 将内容进行 URL 编码以防特殊字符导致请求失败
+          content_encoded=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$content'''))")
 
-          curl -s -X POST "https://www.pushplus.plus/send" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"token\": \"${{ secrets.PUSH_TOKEN }}\",
-              \"title\": \"GlaDOS 每日签到\",
-              \"content\": \"${content}\",
-              \"template\": \"html\"
-            }"
+          curl -s -X POST "https://sctapi.ftqq.com/${{ secrets.SERVERCHAN_KEY }}.send" \
+            -d "title=GlaDOS签到报告" \
+            -d "desp=${content_encoded}"
 
       # ── 保持活跃 ─────────────────────────────────────────
       - name: Keep Alive (每周一提交一次)
